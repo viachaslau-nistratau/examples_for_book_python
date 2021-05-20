@@ -1,20 +1,52 @@
 
 from flask import Flask, render_template, request, escape
 from vsearch import search4letters
+import mysql.connector
 
 app = Flask(__name__)
 
 
+# def log_request(req: 'flask_request', res: str) -> None:
+#     """
+#     функция записи (добавления) в конец файла vsearch.log (значение 'a')
+#     """
+#     with open('vsearch.log', 'a') as log:
+#         # print(req.form, file=log, end='|')         # данные из HTML-формы веб-приложения
+#         # print(req.remote_addr, file=log, end='|')  # IP-адрес веб-браузера, приславшего форму
+#         # print(req.user_agent, file=log, end='|')   # строка, идентифицирующая браузер пользовател
+#         # print(res, file=log)
+#         print(req.form, req.remote_addr, req.user_agent, res, file=log, sep='|')
+
+
 def log_request(req: 'flask_request', res: str) -> None:
     """
-    функция записи (добавления) в конец файла vsearch.log (значение 'a')
+    журналирует веб-запрос и возвращает результаты
     """
-    with open('vsearch.log', 'a') as log:
-        # print(req.form, file=log, end='|')         # данные из HTML-формы веб-приложения
-        # print(req.remote_addr, file=log, end='|')  # IP-адрес веб-браузера, приславшего форму
-        # print(req.user_agent, file=log, end='|')   # строка, идентифицирующая браузер пользовател
-        # print(res, file=log)
-        print(req.form, req.remote_addr, req.user_agent, res, file=log, sep='|')
+    # определяем параметры соединения
+    dbconfig = {'host': '127.0.0.1',
+                'user': 'viachaslau_nistratau',
+                'password': 'Val02061970!',
+                'database': 'vsearchlogDB', }
+    # - импортируем драйвер, устанавливаем соединение и создаем курсор
+    # import mysql.connector
+    conn = mysql.connector.connect(**dbconfig)
+    cursor = conn.cursor()
+    # создаем строку с текстом запроса ждя записи в БД
+    _SQL = """insert into log
+        (phrase, letters, ip, browser_string, results) 
+        values
+        (%s, %s, %s, %s, %s)"""
+    # выполняем запрос (из строки с описанием браузера
+    # (хранящейся в req.user_agent) извлекается только его значение
+    cursor.execute(_SQL, (req.form['phrase'],
+                          req.form['letters'],
+                          req.remote_addr,
+                          req.user_agent.browser,
+                          res, ))
+    # после записи данных убираем за собой, закрыв курсор и соединение
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 
 @app.route('/search4', methods=['POST'])
