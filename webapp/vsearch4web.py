@@ -1,7 +1,7 @@
 
-from flask import Flask, render_template, request, escape
+from flask import Flask, render_template, request, escape, session
 from vsearch import search4letters
-
+from checker import check_logged_in
 from DBcm import UseDatabase
 
 app = Flask(__name__)
@@ -12,8 +12,21 @@ app.config['dbconfig'] = {'host': '127.0.0.1',
                         'password': 'Val02061970!',
                         'database': 'vsearchlogDB', }
 
+# код для обработки URL '/login'
+@app.route('/login')
+def do_login() -> str:
+    session['logged_in'] = True
+    return 'You are now logged in.'
 
-def log_request(req: 'flask_request', res: str) -> None:
+
+@app.route('/logout')
+def do_logout() -> str:
+    # используем метод pop ждя удаления ключа logged_in session
+    session.pop('logged_in')
+    return'You are now logged out'
+
+
+def log_request(req: "flask_request", res: str) -> None:
     """
     журналирует веб-запрос и возвращает результаты
     """
@@ -63,6 +76,7 @@ def entry_page():  # -> 'html':
 
 
 @app.route('/viewlog')
+@check_logged_in
 def view_the_log():  # -> html:
     """
     Выводит содержимое файлаф журнала в виде HTML-таблицы.
@@ -74,7 +88,7 @@ def view_the_log():  # -> html:
         cursor.execute(_SQL)
         contents = cursor.fetchall()
 
-    titles = ('Phrase', 'Letters", "Remote_addr", 'User_agent', 'Results')
+    titles = ('Phrase', 'Letters', "Remote_addr", 'User_agent', 'Results')
     return render_template('viewlog.html',
                            the_title='View Log',
                            the_row_titles=titles,
