@@ -2,9 +2,12 @@
 from flask import Flask, render_template, request, escape, session
 from flask import copy_current_request_context
 from vsearch import search4letters
+
 from checker import check_logged_in
 from DBcm import UseDatabase, ConnectionError, CredentialError, SQLError
+
 from time import sleep
+from threading import Thread
 
 app = Flask(__name__)
 
@@ -49,6 +52,8 @@ def do_search():  # -> html:
                 (%s, %s, %s, %s, %s)"""
             # выполняем запрос (из строки с описанием браузера
             # (хранящейся в req.user_agent) извлекается только его значение
+            # в этой точке работа веб-приложения блокируется, пока БД
+            # не выполнит свои внутренние дела (cursor.execute)
             cursor.execute(_SQL, (req.form['phrase'],
                                   req.form['letters'],
                                   req.remote_addr,
@@ -60,7 +65,10 @@ def do_search():  # -> html:
     title = 'Here are your results:'
     results = str(search4letters(phrase, letters))
     try:
-        log_request(request, results)
+        # указываем целевую ф-ию для запуска, передаем аргументы, которые ей требуются
+        t = Thread(target=log_request, args=(request, results))
+        # запланированный запуск потока
+        t.start()
     except Exception as err:
         print('***** Logging failed with this error', str(err))
     return render_template('results.html',
@@ -92,6 +100,7 @@ def view_the_log():  # -> html:
         with UseDatabase(app.config['dbconfig']) as cursor:
             _SQL = """select phrase, letters, ip, browser_string, results 
                     from log"""
+        # здесь веб-приложение тоже блокируется, ожидая ответа от БД (cursor.execute)
             cursor.execute(_SQL)
             contents = cursor.fetchall()
         titles = ('Phrase', 'Letters', "Remote_addr", 'User_agent', 'Results')
@@ -107,7 +116,8 @@ def view_the_log():  # -> html:
     except SQLError as err:
         print('Is your query correct? Error:', str(err))
     except Exception as err:
-        print('Something went wrong:', str(err))
+        print('Something went wrong:', str(err)
+    return 'Error'
 
 
 # функция escape входит в состав
